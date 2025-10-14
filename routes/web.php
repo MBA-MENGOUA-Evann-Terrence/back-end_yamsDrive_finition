@@ -1,0 +1,11 @@
+<?php
+
+use App\Mail\PasswordGenerated;
+use Illuminate\Support\Facades\Mail;
+use App\Models\Utilisateur;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    return view('welcome');
+});
+
