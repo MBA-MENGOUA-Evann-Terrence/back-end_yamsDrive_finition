@@ -1,61 +1,85 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# YamsDrive - Votre Solution de Gestion de Documents
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**YamsDrive** est une application de gestion électronique de documents (GED) sécurisée et collaborative, développée avec Laravel 11. Elle permet aux utilisateurs et aux équipes de stocker, gérer, partager et retrouver leurs documents de manière efficace.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Cas d'Utilisation (Use Cases)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Voici ce que vous pouvez faire avec YamsDrive :
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 1. En tant qu'Administrateur
 
-## Learning Laravel
+-   **Gérer les utilisateurs** : Créer de nouveaux comptes utilisateurs. Un mot de passe est généré automatiquement et envoyé par email.
+-   **Organiser les équipes** : Créer et gérer des "Services" (départements) pour structurer les utilisateurs et les documents.
+-   **Superviser l'activité** : Accéder à des statistiques globales (nombre d'utilisateurs, de documents) et consulter le journal de toutes les actions effectuées sur la plateforme pour un audit complet.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 2. En tant qu'Utilisateur
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+-   **S'authentifier** : Se connecter de manière sécurisée pour accéder à son espace personnel.
+-   **Gérer ses documents** :
+    -   **Uploader** : Ajouter de nouveaux documents (fichiers, images, PDF, etc.).
+    -   **Organiser** : Voir la liste de ses documents, les modifier (nom, description) et les organiser.
+    -   **Retrouver** : Rechercher des documents par nom, type, date ou propriétaire.
+    -   **Accéder rapidement** : Marquer des documents comme "Favoris" pour les retrouver facilement.
+-   **Utiliser la corbeille** :
+    -   **Supprimer** un document (il est d'abord déplacé dans la corbeille).
+    -   **Restaurer** un document depuis la corbeille.
+    -   **Supprimer définitivement** un document.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 3. Pour la Collaboration
 
-## Laravel Sponsors
+-   **Partager avec d'autres utilisateurs** :
+    -   Partager un document avec un ou plusieurs utilisateurs spécifiques de la plateforme.
+    -   Définir des permissions pour chaque partage : **lecture seule** (`read`) ou **modification** (`edit`).
+    -   Fixer une date d'expiration pour un partage.
+-   **Partager avec des personnes externes** :
+    -   Générer un **lien de partage public et sécurisé** pour un document.
+    -   Contrôler les permissions (`read`/`edit`) et la date d'expiration du lien.
+-   **Partager avec une équipe** :
+    -   Partager un document instantanément avec tous les membres d'un "Service".
+-   **Consulter les partages** :
+    -   Voir la liste des documents que d'autres ont partagés avec vous.
+    -   Voir qui a accès à vos propres documents.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+---
 
-### Premium Partners
+## Technologies Utilisées
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+-   **Framework** : Laravel 11
+-   **Base de données** : MySQL
+-   **Authentification** : Laravel Sanctum (API RESTful)
+-   **Stockage de fichiers** : Système de fichiers local de Laravel
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Installation du Projet
 
-## Code of Conduct
+1.  **Cloner le dépôt** :
+    ```bash
+    git clone https://votre-repository/back-end_yamsDrive-main.git
+    cd back-end_yamsDrive-main
+    ```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+2.  **Installer les dépendances** :
+    ```bash
+    composer install
+    npm install
+    ```
 
-## Security Vulnerabilities
+3.  **Configurer l'environnement** :
+    -   Copiez le fichier `.env.example` en `.env` : `cp .env.example .env`
+    -   Générez une clé d'application : `php artisan key:generate`
+    -   Configurez les informations de votre base de données dans le fichier `.env` (DB_DATABASE, DB_USERNAME, DB_PASSWORD).
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+4.  **Lancer les migrations** :
+    ```bash
+    php artisan migrate
+    ```
 
-## License
+5.  **Lancer le serveur** :
+    ```bash
+    php artisan serve
+    ```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+L'API sera accessible à l'adresse `http://127.0.0.1:8000`.

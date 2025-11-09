@@ -19,7 +19,7 @@ class DocumentShareController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function sharedWithMe()
+    public function sharedWithMe(Request $request)
     {
         try {
             // Vérifier si l'utilisateur est authentifié
@@ -37,7 +37,22 @@ class DocumentShareController extends Controller
                     $query->whereNull('expires_at')
                           ->orWhere('expires_at', '>', now());
                 })
-                ->with(['document', 'sharedBy:id,name,email'])
+                ->with(['document.user', 'sharedBy:id,name,email'])
+                // Filtre texte sur le document (nom/chemin)
+                ->when($request->filled('q'), function ($q) use ($request) {
+                    $term = $request->input('q');
+                    $q->whereHas('document', function ($dq) use ($term) {
+                        $dq->where('nom', 'like', "%{$term}%")
+                           ->orWhere('chemin', 'like', "%{$term}%");
+                    });
+                })
+                // Filtre par nom du propriétaire du document
+                ->when($request->filled('owner'), function ($q) use ($request) {
+                    $owner = $request->input('owner');
+                    $q->whereHas('document.user', function ($uq) use ($owner) {
+                        $uq->where('name', 'like', "%{$owner}%");
+                    });
+                })
                 ->get();
             
             \Log::info('Nombre de partages trouvés', ['count' => $shares->count()]);

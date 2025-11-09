@@ -24,7 +24,7 @@ class AuthController extends Controller
                     'nom' => 'required|string|max:255',
                     'prenom' => 'required|string|max:255',
                     'email' => 'required|string|email|max:255|unique:users,email',
-                    'service_id' => 'required|exists:services,id',
+                    'service_id' => 'nullable|exists:services,id',
                 ]);
             } catch (\Illuminate\Validation\ValidationException $e) {
                 return response()->json([
@@ -47,6 +47,7 @@ class AuthController extends Controller
                 'email' => $email,
                 'password' => Hash::make($password),
                 'service_id' => $request->input('service_id'),
+                'role' => 0, // Assigner le rôle d'utilisateur par défaut
             ]);
 
             // Envoi de l'email avec le mot de passe généré 

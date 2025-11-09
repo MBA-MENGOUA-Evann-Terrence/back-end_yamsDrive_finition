@@ -16,8 +16,11 @@ class UserController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function index()
+    public function index(Request $request)
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         try {
             // On récupère tous les utilisateurs avec leur service ET on les trie par ID croissant pour éviter les incohérences
             $users = User::with('service')->orderBy('id', 'asc')->get();
@@ -38,8 +41,11 @@ class UserController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         // Journaliser l'appel à la méthode show
         \Log::info('Tentative d\'accès à l\'utilisateur', ['id' => $id]);
         
@@ -105,6 +111,9 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         
         try {
             
@@ -166,6 +175,8 @@ class UserController extends Controller
      */
     public function update(Request $request, $id)
     {
+        // La logique existante vérifie déjà si l'utilisateur est propriétaire ou admin, c'est suffisant.
+        // Pas besoin de rajouter une vérification ici.
         try {
             $user = User::findOrFail($id);
             $authenticatedUser = $request->user();
@@ -176,7 +187,7 @@ class UserController extends Controller
             }
 
             // Security Check: Only the owner or an admin can update the profile.
-            if ($authenticatedUser->id != $user->id && $authenticatedUser->role !== 'admin') {
+            if ($authenticatedUser->id != $user->id && $authenticatedUser->role != 1) {
                 return response()->json(['message' => 'Accès non autorisé.'], 403);
             }
 
@@ -241,8 +252,11 @@ class UserController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         try {
             $user = User::findOrFail($id);
             

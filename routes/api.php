@@ -14,6 +14,10 @@ Route::post('/token', [AuthController::class, 'authenticate']);
 // Route de déconnexion protégée
 Route::middleware('auth:sanctum')->post('/logout', [LogoutController::class, 'logout']);
 
+// Route pour récupérer le service de l'utilisateur connecté
+// Route pour récupérer le service de l'utilisateur (vérification manuelle dans le contrôleur)
+Route::get('/user/service', [App\Http\Controllers\ServiceController::class, 'getUserService']);
+
 // Cette route est protégée et renvoie l'utilisateur actuellement authentifié
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     try {
@@ -80,10 +84,13 @@ Route::post('/documents', [App\Http\Controllers\DocumentController::class, 'stor
 // IMPORTANT: Cette route doit être placée AVANT les routes avec des paramètres {uuid}
 Route::get('/documents/shared-with-me', [App\Http\Controllers\DocumentShareController::class, 'sharedWithMe']);
 
-// Nouvelle route unifiée pour tous les documents récents
-Route::get('/documents/recent', [App\Http\Controllers\DocumentController::class, 'getRecentDocuments']);
-// Recherche/filtrage avancé (inclut mes documents et ceux partagés avec moi)
-Route::get('/documents/search', [App\Http\Controllers\DocumentSearchController::class, 'index']);
+    // Nouvelle route unifiée pour tous les documents récents
+    Route::get('/documents/recent', [App\Http\Controllers\DocumentController::class, 'getRecentDocuments']);
+    Route::get('/documents/recent/search', [App\Http\Controllers\RecentDocumentSearchController::class, 'index']);
+    // Recherche/filtrage avancé (inclut mes documents et ceux partagés avec moi)
+    Route::get('/documents/search', [App\Http\Controllers\DocumentSearchController::class, 'index']);
+    // Options pour les filtres avancés (types, personnes, services)
+    Route::get('/documents/filters/options', [App\Http\Controllers\DocumentFilterController::class, 'getFilterOptions']);
 
 Route::get('/documents/{uuid}', [App\Http\Controllers\DocumentController::class, 'show'])->whereUuid('uuid');
 Route::get('/documents/{uuid}/preview', [App\Http\Controllers\DocumentController::class, 'preview'])->whereUuid('uuid');

@@ -8,8 +8,43 @@ use Illuminate\Support\Facades\Validator;
 
 class ServiceController extends Controller
 {
+    /**
+     * Récupère le service de l'utilisateur authentifié.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUserService(Request $request)
+    {
+        try {
+            $user = $request->user();
 
-    public function index() 
+            if (!$user) {
+                return response()->json(['message' => 'Utilisateur non authentifié.'], 401);
+            }
+
+            // Charger la relation 'service' pour l'utilisateur
+            $user->load('service');
+
+            if (!$user->service) {
+                return response()->json(['message' => 'Aucun service associé à cet utilisateur.'], 404);
+            }
+
+            // Retourner le service dans un tableau pour que le front-end puisse l'itérer
+            return response()->json(['data' => [$user->service]]);
+
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la récupération du service de l\'utilisateur', [
+                'user_id' => $request->user() ? $request->user()->id : 'N/A',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Erreur serveur lors de la récupération du service.'], 500);
+        }
+    }
+
+
+    public function index(Request $request) 
     {
         $services = Service::latest();
 
@@ -20,6 +55,9 @@ class ServiceController extends Controller
 
     public function store(Request $request) 
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         $validator = Validator::make(
            $request->all(),
            [
@@ -55,13 +93,19 @@ class ServiceController extends Controller
         return $this->sendApiResponse($service, 'Service ajouté', 201);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         return new ServiceResource(Service::find($id));
     }
 
     public function update(Request $request, $id) 
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         $validator = Validator::make(
            $request->all(),
            [
@@ -98,8 +142,11 @@ class ServiceController extends Controller
         return $this->sendApiResponse($service, 'Service modifié', 201);
     }
 
-    public function destroy($id) 
+    public function destroy(Request $request, $id) 
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         $service = Service::find($id);
         $service->delete();
 
@@ -108,6 +155,9 @@ class ServiceController extends Controller
 
     public function destroy_group(Request $request)
     {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
         $key = 0;
         $nb_supprimes = 0;
         $messages= [];

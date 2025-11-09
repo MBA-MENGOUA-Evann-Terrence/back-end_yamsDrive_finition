@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('telephone1')->nullable();
              $table->string('telephone2')->nullable();
-            $table->string('role')->nullable();
+            $table->tinyInteger('role')->nullable(); // 0 = utilisateur, 1 = admin
             $table->string('statut')->default('active'); // Default status is 'active'
              $table->json('permissions')->nullable();
             $table->timestamp('email_verified_at')->nullable();

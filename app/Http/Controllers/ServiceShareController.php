@@ -42,6 +42,11 @@ class ServiceShareController extends Controller
                 ], 422);
             }
 
+            // Règle de sécurité : un utilisateur normal ne peut envoyer qu'à son propre service.
+            if ($user->role != 1 && $user->service_id != $request->service_id) {
+                return response()->json(['message' => 'Action non autorisée. Vous ne pouvez partager des documents qu\'avec votre propre service.'], 403);
+            }
+
             // Vérifier que le document existe et appartient à l'utilisateur
             $document = Document::where('uuid', $uuid)->first();
             
