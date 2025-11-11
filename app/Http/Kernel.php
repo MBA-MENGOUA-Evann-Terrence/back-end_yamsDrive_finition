@@ -40,7 +40,8 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
-            // 'throttle:api',
+            'throttle:api',
+            'auth:sanctum',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\PermissionsPolicyMiddleware::class,
             // Middleware CORS intégré à Laravel sera utilisé à la place (middleware global HandleCors)
@@ -67,5 +68,6 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'is_admin' => \App\Http\Middleware\IsAdmin::class,
+        'auth:sanctum' => \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
     ];
 }

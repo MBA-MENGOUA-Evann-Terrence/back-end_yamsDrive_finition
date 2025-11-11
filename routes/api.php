@@ -116,6 +116,11 @@ Route::get('/users', [UserController::class, 'index']);
 Route::get('/users/{id}', [UserController::class, 'show']);
 Route::post('/users', [UserController::class, 'store']);
 Route::put('/users/{id}', [UserController::class, 'update']);
+Route::patch('/users/{id}/assign-role', [UserController::class, 'assignRole']);
+Route::patch('/users/{id}/assign-service', [UserController::class, 'assignService']);
+Route::patch('/users/{id}/reset-password', [UserController::class, 'resetPassword']); // Réinitialiser le mot de passe
+Route::delete('/users/{id}', [UserController::class, 'destroy']); // Geler le compte
+Route::patch('/users/{id}/unfreeze', [UserController::class, 'unfreeze']); // Dégeler le compte
 
 // Route pour les statistiques
 Route::get('/statistiques/globales', [App\Http\Controllers\StatistiqueController::class, 'getGlobalStats']);
@@ -124,8 +129,10 @@ Route::get('/statistiques/repartition-stockage', [App\Http\Controllers\Statistiq
 Route::get('/statistiques/activite-utilisateurs', [App\Http\Controllers\StatistiqueController::class, 'getUserActivity']);
 Route::get('/statistiques/actions-recentes', [App\Http\Controllers\StatistiqueController::class, 'getRecentActions']);
 Route::get('/statistiques/actions-utilisateurs', [App\Http\Controllers\StatistiqueController::class, 'getUserActionsChart']);
-Route::delete('/users/{id}', [UserController::class, 'destroy']);
-Route::post('/documents/{uuid}/destroy', [App\Http\Controllers\DocumentController::class, 'destroy']);
+Route::get('/statistiques/partages-documents', [App\Http\Controllers\StatistiqueController::class, 'getDocumentSharingStats']);
+Route::get('/statistiques/flux-documents', [App\Http\Controllers\StatistiqueController::class, 'getLiveDocumentFlow']);
+Route::get('/statistiques/utilisateurs-actifs', [App\Http\Controllers\StatistiqueController::class, 'getActiveUsersAndActivity']);
+
 
 // Routes pour le partage de documents
 Route::get('/documents/{uuid}/shares', [App\Http\Controllers\DocumentShareController::class, 'index']);
@@ -134,8 +141,9 @@ Route::post('/documents/{uuid}/share-by-service', [App\Http\Controllers\ServiceS
 Route::post('/documents/{uuid}/share-link', [App\Http\Controllers\DocumentShareController::class, 'generateShareLink']);
 Route::delete('/documents/{uuid}/shares/{shareId}', [App\Http\Controllers\DocumentShareController::class, 'removeShare']);
 
-// Route publique pour accéder à un document partagé via un token
-Route::get('/shared-documents/{token}', [App\Http\Controllers\DocumentShareController::class, 'accessSharedDocument']);
+// Routes publiques pour les documents partagés via un token
+Route::get('/shared-documents/{token}/info', [App\Http\Controllers\DocumentShareController::class, 'getSharedDocumentInfo']); // Récupérer les infos
+Route::get('/shared-documents/{token}', [App\Http\Controllers\DocumentShareController::class, 'accessSharedDocument']); // Télécharger le fichier
 
 // Route pour la déconnexion (Sanctum)
 Route::post('/logout', [App\Http\Controllers\LogoutController::class, 'logout'])->middleware('auth:sanctum');
@@ -240,9 +248,53 @@ Route::post('/utilisateurs/{id}/update', [App\Http\Controllers\UtilisateurContro
 Route::post('/utilisateurs/{id}/destroy', [App\Http\Controllers\UtilisateurController::class, 'destroy']);
 Route::post('/utilisateurs/destroy-group', [App\Http\Controllers\UtilisateurController::class, 'destroy_group']);
 
+// Routes de test (sans authentification)
+Route::get('/test-notifications', [App\Http\Controllers\NotificationSystemController::class, 'test']);
+Route::get('/test-database', [App\Http\Controllers\NotificationSystemController::class, 'testDatabase']);
+Route::get('/test-user-relation', [App\Http\Controllers\NotificationSystemController::class, 'testUserRelation']);
+Route::get('/test-unread-count/{userId}', function($userId) {
+    $user = \App\Models\User::find($userId);
+    if (!$user) {
+        return response()->json(['error' => 'Utilisateur non trouvé'], 404);
+    }
+    $count = $user->notifications()->whereNull('read_at')->count();
+    return response()->json(['user_id' => $userId, 'user_name' => $user->name, 'unread_count' => $count]);
+});
+
+Route::get('/check-token/{tokenId}', function($tokenId) {
+    $token = \Laravel\Sanctum\PersonalAccessToken::find($tokenId);
+    if (!$token) {
+        return response()->json(['error' => 'Token non trouvé'], 404);
+    }
+    
+    $user = $token->tokenable;
+    if (!$user) {
+        return response()->json(['error' => 'Utilisateur associé au token non trouvé'], 404);
+    }
+    
+    return response()->json([
+        'token_id' => $token->id,
+        'user_id' => $user->id,
+        'user_name' => $user->name,
+        'token_created' => $token->created_at,
+        'token_updated' => $token->updated_at
+    ]);
+});
+
+// Routes pour le nouveau système de notifications
+Route::prefix('system/notifications')->group(function () {
+    Route::get('/', [App\Http\Controllers\NotificationSystemController::class, 'index']);
+    Route::get('/unread-count', [App\Http\Controllers\NotificationSystemController::class, 'unreadCount']);
+    Route::patch('/{notificationId}/read', [App\Http\Controllers\NotificationSystemController::class, 'markAsRead']);
+    Route::post('/mark-all-read', [App\Http\Controllers\NotificationSystemController::class, 'markAllAsRead']);
+    Route::delete('/{notificationId}', [App\Http\Controllers\NotificationSystemController::class, 'destroy']);
+});
+
 // Routes pour la gestion des noms de domaine
 Route::get('/domains', [DomainController::class, 'index']);
 Route::post('/domains', [DomainController::class, 'store']);
+
+// Routes de test supprimées - La solution finale est implémentée dans NotificationSystemController
  
 
 

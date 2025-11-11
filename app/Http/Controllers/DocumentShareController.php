@@ -6,6 +6,7 @@ use App\Models\Document;
 use App\Models\DocumentShare;
 use App\Models\ShareLink;
 use App\Models\User;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\LogActionTrait;
@@ -160,6 +161,15 @@ class DocumentShareController extends Controller
                 'expires_at' => $request->expires_at,
                 'shared_by' => Auth::id(),
             ]);
+
+            // Créer une notification pour l'utilisateur destinataire
+            Notification::create([
+                'user_id' => $user->id,
+                'sender_id' => Auth::id(),
+                'document_id' => $document->id,
+                'type' => 'document_shared',
+                'message' => auth()->user()->name . ' a mis à jour le partage du document : ' . $document->nom,
+            ]);
             
             return response()->json([
                 'message' => 'Partage mis à jour avec succès',
@@ -167,9 +177,6 @@ class DocumentShareController extends Controller
             ]);
         }
         
-        // DÉSACTIVÉ: Journalisation temporairement désactivée pour éviter la récursion infinie
-        // $this->logAction('partage', $document, ['user_id' => $user->id, 'permission' => $request->permission_level]);
-
         // Créer un nouveau partage
         $share = DocumentShare::create([
             'document_id' => $document->id,
@@ -177,6 +184,18 @@ class DocumentShareController extends Controller
             'shared_by' => Auth::id(),
             'permission_level' => $request->permission_level,
             'expires_at' => $request->expires_at,
+        ]);
+
+        // Enregistrer l'action dans les logs
+        $this->logAction('partage', $document, ['user_id' => $user->id, 'permission' => $request->permission_level]);
+
+        // Créer une notification pour l'utilisateur destinataire
+        Notification::create([
+            'user_id' => $user->id,
+            'sender_id' => Auth::id(),
+            'document_id' => $document->id,
+            'type' => 'document_shared',
+            'message' => auth()->user()->name . ' a partagé un document avec vous : ' . $document->nom,
         ]);
         
         return response()->json([
@@ -197,6 +216,9 @@ class DocumentShareController extends Controller
         $request->validate([
             'permission_level' => 'required|in:read,edit',
             'expires_at' => 'nullable|date|after:now',
+            'require_code' => 'nullable|boolean',
+            'access_code' => 'nullable|string|size:6',
+            'require_login' => 'nullable|boolean',
         ]);
         
         // Récupérer le document
@@ -207,6 +229,16 @@ class DocumentShareController extends Controller
         // Générer un token unique
         $token = Str::random(32);
         
+        // Generer un code d'acces si demande
+        $accessCode = null;
+        $requireCode = $request->input('require_code', false);
+        $requireLogin = $request->input('require_login', false);
+        
+        if ($requireCode) {
+            // Utiliser le code fourni ou en generer un automatiquement
+            $accessCode = $request->input('access_code') ?? str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        }
+        
         // Créer un lien de partage dans la table dédiée
         $shareLink = ShareLink::create([
             'document_id' => $document->id,
@@ -214,27 +246,35 @@ class DocumentShareController extends Controller
             'shared_by' => Auth::id(),
             'permission_level' => $request->permission_level,
             'expires_at' => $request->expires_at,
+            'access_code' => $accessCode,
+            'require_code' => $requireCode,
+            'require_login' => $requireLogin,
         ]);
         
-        // Générer l'URL de partage
-        $shareUrl = url('/api/shared-documents/' . $token);
+        // Générer l'URL de partage pointant vers le frontend
+        $frontendUrl = env('FRONTEND_URL', 'http://localhost:3000');
+        $shareUrl = $frontendUrl . '/shared/' . $token;
         
         return response()->json([
             'message' => 'Lien de partage généré avec succès',
             'data' => [
                 'share' => $shareLink->load('sharedBy:id,name,email'),
-                'share_url' => $shareUrl
+                'share_url' => $shareUrl,
+                'token' => $token,
+                'access_code' => $accessCode,
+                'require_code' => $requireCode,
+                'require_login' => $requireLogin
             ]
         ], 201);
     }
 
     /**
-     * Accède à un document partagé via un token et le télécharge directement.
+     * Récupère les informations d'un document partagé via un token (sans télécharger).
      *
      * @param  string  $token
-     * @return \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function accessSharedDocument(string $token)
+    public function getSharedDocumentInfo(string $token)
     {
         try {
             // Trouver le lien de partage par token
@@ -249,6 +289,34 @@ class DocumentShareController extends Controller
                 return response()->json(['message' => 'Ce lien de partage a expiré'], 403);
             }
             
+            // Vérifier si la connexion est requise
+            if ($shareLink->require_login) {
+                $token = request()->bearerToken();
+                if (!$token) {
+                    return response()->json([
+                        'message' => 'Connexion requise pour accéder à ce document',
+                        'require_login' => true,
+                        'document_name' => $shareLink->document->nom ?? 'Document'
+                    ], 401);
+                }
+                
+                // Vérifier le token
+                $personalAccessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+                if (!$personalAccessToken) {
+                    return response()->json(['message' => 'Token invalide'], 401);
+                }
+            }
+            
+            // Verifier si un code d'acces est requis
+            if ($shareLink->require_code) {
+                return response()->json([
+                    'message' => 'Code d\'acces requis',
+                    'require_code' => true,
+                    'require_login' => $shareLink->require_login,
+                    'document_name' => $shareLink->document->nom ?? 'Document'
+                ], 403);
+            }
+            
             // Récupérer le document
             $document = $shareLink->document;
             
@@ -256,21 +324,128 @@ class DocumentShareController extends Controller
                 return response()->json(['message' => 'Document non trouvé'], 404);
             }
             
+            // Vérifier que le chemin du fichier existe
+            if (!$document->chemin) {
+                return response()->json(['message' => 'Chemin du fichier non défini'], 404);
+            }
+            
             // Vérifier que le fichier existe sur le serveur
-            if (!\Storage::disk('private')->exists($document->file_path)) {
-                return response()->json(['message' => 'Fichier non trouvé sur le serveur'], 404);
+            if (!\Storage::disk('public')->exists($document->chemin)) {
+                return response()->json([
+                    'message' => 'Fichier non trouvé sur le serveur',
+                    'chemin' => $document->chemin
+                ], 404);
+            }
+            
+            // Retourner les informations du document
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'nom' => $document->nom,
+                    'type' => $document->type,
+                    'taille' => $document->taille,
+                    'description' => $document->description,
+                    'shared_by' => $shareLink->sharedBy->name ?? 'Utilisateur inconnu',
+                    'permission_level' => $shareLink->permission_level,
+                    'expires_at' => $shareLink->expires_at,
+                    'token' => $token
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la récupération des infos du document partagé', [
+                'token' => $token,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'message' => 'Une erreur est survenue',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Accède à un document partagé via un token et le télécharge directement.
+     *
+     * @param  string  $token
+     * @return \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
+     */
+    public function accessSharedDocument(string $token, Request $request)
+    {
+        try {
+            // Trouver le lien de partage par token
+            $shareLink = ShareLink::where('token', $token)->first();
+            
+            if (!$shareLink) {
+                return response()->json(['message' => 'Lien de partage invalide ou expiré'], 404);
+            }
+            
+            // Vérifier si le lien est expiré
+            if ($shareLink->isExpired()) {
+                return response()->json(['message' => 'Ce lien de partage a expiré'], 403);
+            }
+            
+            // Vérifier si la connexion est requise
+            if ($shareLink->require_login) {
+                $token = $request->bearerToken();
+                if (!$token) {
+                    return response()->json([
+                        'message' => 'Connexion requise pour télécharger ce document',
+                        'require_login' => true
+                    ], 401);
+                }
+                
+                // Vérifier le token
+                $personalAccessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+                if (!$personalAccessToken) {
+                    return response()->json(['message' => 'Token invalide'], 401);
+                }
+            }
+            
+            // Verifier le code d'acces si requis
+            if ($shareLink->require_code) {
+                $providedCode = $request->input('access_code') ?? $request->header('X-Access-Code');
+                
+                if (!$providedCode || $providedCode !== $shareLink->access_code) {
+                    return response()->json([
+                        'message' => 'Code d\'acces incorrect ou manquant',
+                        'require_code' => true
+                    ], 403);
+                }
+            }
+            
+            // Récupérer le document
+            $document = $shareLink->document;
+            
+            if (!$document) {
+                return response()->json(['message' => 'Document non trouvé'], 404);
+            }
+            
+            // Vérifier que le chemin du fichier existe
+            if (!$document->chemin) {
+                return response()->json(['message' => 'Chemin du fichier non défini'], 404);
+            }
+            
+            // Vérifier que le fichier existe sur le serveur
+            if (!\Storage::disk('public')->exists($document->chemin)) {
+                return response()->json([
+                    'message' => 'Fichier non trouvé sur le serveur',
+                    'chemin' => $document->chemin
+                ], 404);
             }
             
             // Journaliser l'accès via lien de partage
             \Log::info('Accès via lien de partage', [
                 'token' => $token,
                 'document_id' => $document->id,
-                'document_name' => $document->name,
+                'document_nom' => $document->nom,
                 'shared_by' => $shareLink->shared_by
             ]);
             
             // Retourner le fichier en téléchargement direct
-            return \Storage::disk('private')->download($document->file_path, $document->file_name);
+            return \Storage::disk('public')->download($document->chemin, $document->nom);
             
         } catch (\Exception $e) {
             \Log::error('Erreur lors de l\'accès au document partagé', [

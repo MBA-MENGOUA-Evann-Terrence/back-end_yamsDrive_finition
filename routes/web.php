@@ -9,3 +9,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+Route::get('/test-web', function () {
+    return response()->json(['message' => 'Test web works']);
+});
+
