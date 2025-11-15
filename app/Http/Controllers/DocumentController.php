@@ -15,11 +15,9 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Exception;
 use Log;
-use App\Traits\LogActionTrait;
 
 class DocumentController extends Controller
 {
-    use LogActionTrait;
     /**
      * Affiche la liste des documents de l'utilisateur connecté.
      */
@@ -63,8 +61,8 @@ class DocumentController extends Controller
             'service_id' => $request->input('service_id'),
         ]);
 
-        // Enregistrer l'action dans les logs
-        $this->logAction('création', $document, $document->toArray());
+        // Déclenche l'événement de journalisation
+        event(new UserActionLogged('création', $document, $document->toArray()));
 
         return response()->json([
             'message' => 'Document créé avec succès',
@@ -97,8 +95,8 @@ class DocumentController extends Controller
         $originalData = $document->toArray();
         $document->update($validated);
 
-        // Enregistrer l'action dans les logs
-        $this->logAction('modification', $document, $document->getChanges(), $originalData);
+        // Déclenche l'événement de journalisation
+        event(new UserActionLogged('mise à jour', $document, $document->getChanges(), $originalData));
 
         return response()->json([
             'message' => 'Document mis à jour avec succès',
@@ -107,78 +105,37 @@ class DocumentController extends Controller
     }
 
     /**
-     * Supprime un document (propriétaire ou partagé).
+     * Supprime un document.
      */
-    public function destroy(string $uuid, Request $request)
+    public function destroy(string $uuid)
     {
-        try {
-            // Récupération manuelle du token
-            $token = $request->bearerToken();
-            if (!$token) {
-                return response()->json(['error' => 'Token non fourni'], 401);
-            }
+        $document = Auth::user()->documents()->where('uuid', $uuid)->firstOrFail();
+        $originalData = $document->toArray();
 
-            // Validation manuelle du token
-            $personalAccessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-            if (!$personalAccessToken) {
-                return response()->json(['error' => 'Token invalide'], 401);
-            }
+        // Ne pas supprimer le fichier physique ici: on effectue un soft delete uniquement.
+        // Le fichier sera supprimé définitivement dans forceDelete().
 
-            // Récupération de l'utilisateur
-            $user = $personalAccessToken->tokenable;
+        // Déclenche l'événement de journalisation avant la suppression (soft)
+        event(new UserActionLogged('suppression', $document, null, $originalData));
 
-            // Vérifier si l'utilisateur est propriétaire du document
-            $document = $user->documents()->where('uuid', $uuid)->first();
+        $document->delete();
 
-            if (!$document) {
-                // Si pas propriétaire, vérifier si le document est partagé avec l'utilisateur
-                $sharedDocument = \App\Models\DocumentShare::where('user_id', $user->id)
-                    ->whereHas('document', function($query) use ($uuid) {
-                        $query->where('uuid', $uuid);
-                    })
-                    ->with('document')
-                    ->first();
+        // Rafraîchir le modèle pour récupérer deleted_at
+        $document->refresh();
+        // Log::info('Soft delete effectué', [
+        //     'uuid' => $document->uuid,
+        //     'deleted_at' => $document->deleted_at,
+        //     'trashed' => $document->trashed(),
+        // ]);
 
-                if (!$sharedDocument) {
-                    return response()->json(['message' => 'Document non trouvé ou accès refusé'], 404);
-                }
-
-                // Pour un document partagé, on supprime uniquement le partage
-                $sharedDocument->delete();
-                return response()->json([
-                    'message' => 'Document retiré de vos documents partagés',
-                    'type' => 'shared_removed'
-                ]);
-            }
-
-            // Si propriétaire, effectuer un soft delete du document
-            $originalData = $document->toArray();
-
-            // Enregistrer l'action dans les logs
-            $this->logAction('suppression', $document, null, $originalData);
-
-            $document->delete();
-
-            // Rafraîchir le modèle pour récupérer deleted_at
-            $document->refresh();
-
-            return response()->json([
-                'message' => 'Document supprimé avec succès',
-                'type' => 'owner_deleted',
-                'data' => [
-                    'uuid' => $document->uuid,
-                    'trashed' => $document->trashed(),
-                    'deleted_at' => $document->deleted_at,
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Erreur serveur',
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Document supprimé avec succès',
+            'data' => [
+                'uuid' => $document->uuid,
+                'trashed' => $document->trashed(),
+                'deleted_at' => $document->deleted_at,
+            ]
+        ]);
     }
 
     /**
@@ -268,8 +225,8 @@ class DocumentController extends Controller
                 return response()->json(['message' => 'Fichier non disponible sur le site.'], 404);
             }
 
-            // Enregistrer l'action dans les logs
-            $this->logAction('téléchargement', $document);
+            // Journaliser l'action de téléchargement
+            event(new UserActionLogged('telechargement', $document));
 
             // Retourner le fichier en tant que téléchargement
             return response()->download($filePath, $document->nom);

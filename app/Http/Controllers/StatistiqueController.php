@@ -454,30 +454,7 @@ class StatistiqueController extends Controller
     public function getLiveDocumentFlow()
     {
         try {
-            // 1. Récupérer TOUS les services d'abord
-            $allServices = DB::table('services')
-                ->select('id', 'nom')
-                ->get();
-
-            // Construire les nœuds avec TOUS les services
-            $servicesMap = [];
-            $nodes = [];
-            $nodeIndex = 0;
-
-            foreach ($allServices as $service) {
-                $servicesMap[$service->id] = $nodeIndex;
-                $nodes[] = [
-                    'id' => $nodeIndex,
-                    'service_id' => $service->id,
-                    'label' => $service->nom,
-                    'type' => 'service',
-                    'size' => 20,
-                    'activity' => 0
-                ];
-                $nodeIndex++;
-            }
-
-            // 2. Récupérer les flux de documents entre services
+            // Récupérer les flux de documents entre services
             $flows = DB::table('document_shares')
                 ->select([
                     'services_source.id as source_service_id',
@@ -497,6 +474,39 @@ class StatistiqueController extends Controller
                 ->whereNotNull('services_dest.id')
                 ->groupBy('services_source.id', 'services_source.nom', 'services_dest.id', 'services_dest.nom', 'documents.type')
                 ->get();
+
+            // Construire les nœuds (services uniques)
+            $servicesMap = [];
+            $nodes = [];
+            $nodeIndex = 0;
+
+            foreach ($flows as $flow) {
+                // Ajouter le service source
+                if (!isset($servicesMap[$flow->source_service_id])) {
+                    $servicesMap[$flow->source_service_id] = $nodeIndex;
+                    $nodes[] = [
+                        'id' => $nodeIndex,
+                        'service_id' => $flow->source_service_id,
+                        'label' => $flow->source_service,
+                        'type' => 'service',
+                        'size' => 20
+                    ];
+                    $nodeIndex++;
+                }
+
+                // Ajouter le service destination
+                if (!isset($servicesMap[$flow->dest_service_id])) {
+                    $servicesMap[$flow->dest_service_id] = $nodeIndex;
+                    $nodes[] = [
+                        'id' => $nodeIndex,
+                        'service_id' => $flow->dest_service_id,
+                        'label' => $flow->dest_service,
+                        'type' => 'service',
+                        'size' => 20
+                    ];
+                    $nodeIndex++;
+                }
+            }
 
             // Calculer la taille des nœuds en fonction de l'activité
             $activityCount = [];

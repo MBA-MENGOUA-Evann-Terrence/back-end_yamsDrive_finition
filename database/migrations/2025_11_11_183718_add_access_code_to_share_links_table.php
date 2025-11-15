@@ -12,8 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('share_links', function (Blueprint $table) {
-            $table->string('access_code', 6)->nullable()->after('permission_level');
-            $table->boolean('require_code')->default(false)->after('access_code');
+            //
         });
     }
 
@@ -23,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('share_links', function (Blueprint $table) {
-            $table->dropColumn(['access_code', 'require_code']);
+            //
         });
     }
 };

@@ -90,14 +90,6 @@ class AuthController extends Controller
             // Récupération de l'utilisateur
             $user = User::where('email', $request->email)->firstOrFail();
             
-            // Vérifier si le compte est gelé/suspendu
-            if ($user->statut === 'inactif' || $user->statut === 'suspendu') {
-                return response()->json([
-                    'message' => 'Votre compte est actuellement inaccessible. Veuillez contacter l\'administrateur pour résoudre ce problème.',
-                    'statut' => 'compte_suspendu'
-                ], 403);
-            }
-            
             // Création du token Sanctum
             $token = $user->createToken('yamsdigital')->plainTextToken;
     

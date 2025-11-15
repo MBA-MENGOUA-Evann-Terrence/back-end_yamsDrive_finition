@@ -25,13 +25,6 @@ class UserController extends Controller
             // On récupère tous les utilisateurs avec leur service ET on les trie par ID croissant pour éviter les incohérences
             $users = User::with('service')->orderBy('id', 'asc')->get();
 
-            // Ajouter un indicateur clair pour les comptes gelés
-            $users = $users->map(function($user) {
-                $userData = $user->toArray();
-                $userData['is_frozen'] = ($user->statut === 'suspendu' || $user->statut === 'inactif');
-                return $userData;
-            });
-
             return response()->json(['data' => $users]);
         } catch (\Exception $e) {
             \Log::error('Erreur lors de la récupération des utilisateurs', [
@@ -254,361 +247,34 @@ class UserController extends Controller
     }
 
     /**
-     * Gèle/Suspend un compte utilisateur (au lieu de le supprimer).
+     * Supprime un utilisateur.
      *
      * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function destroy(Request $request, $id)
     {
-        try {
-            // Récupération manuelle du token
-            $token = $request->bearerToken();
-            if (!$token) {
-                return response()->json(['error' => 'Token non fourni'], 401);
-            }
-
-            // Validation manuelle du token
-            $personalAccessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-            if (!$personalAccessToken) {
-                return response()->json(['error' => 'Token invalide'], 401);
-            }
-
-            // Récupération de l'utilisateur authentifié
-            $authenticatedUser = $personalAccessToken->tokenable;
-
-            // Vérifier que l'utilisateur authentifié est admin
-            if ($authenticatedUser->role != 1) {
-                return response()->json(['message' => 'Accès non autorisé. Seuls les administrateurs peuvent geler des comptes.'], 403);
-            }
-
-            // Récupérer l'utilisateur à geler
-            $user = User::findOrFail($id);
-
-            // Empêcher un admin de geler son propre compte
-            if ($user->id === $authenticatedUser->id) {
-                return response()->json(['message' => 'Vous ne pouvez pas geler votre propre compte.'], 403);
-            }
-
-            // Geler le compte en changeant le statut
-            $user->statut = 'suspendu';
-            $user->save();
-
-            // Révoquer tous les tokens de l'utilisateur pour le déconnecter immédiatement
-            $user->tokens()->delete();
-
-            return response()->json([
-                'message' => 'Compte utilisateur gelé avec succès. L\'utilisateur ne pourra plus se connecter.',
-                'data' => [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'statut' => $user->statut
-                ]
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
-        } catch (\Exception $e) {
-            \Log::error('Erreur lors du gel du compte utilisateur', [
-                'id' => $id,
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'error' => 'Erreur serveur',
-                'message' => $e->getMessage()
-            ], 500);
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
         }
-    }
-
-    /**
-     * Dégèle/Réactive un compte utilisateur suspendu.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function unfreeze(Request $request, $id)
-    {
         try {
-            // Récupération manuelle du token
-            $token = $request->bearerToken();
-            if (!$token) {
-                return response()->json(['error' => 'Token non fourni'], 401);
-            }
-
-            // Validation manuelle du token
-            $personalAccessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-            if (!$personalAccessToken) {
-                return response()->json(['error' => 'Token invalide'], 401);
-            }
-
-            // Récupération de l'utilisateur authentifié
-            $authenticatedUser = $personalAccessToken->tokenable;
-
-            // Vérifier que l'utilisateur authentifié est admin
-            if ($authenticatedUser->role != 1) {
-                return response()->json(['message' => 'Accès non autorisé. Seuls les administrateurs peuvent dégeler des comptes.'], 403);
-            }
-
-            // Récupérer l'utilisateur à dégeler
             $user = User::findOrFail($id);
-
-            // Vérifier si le compte est bien suspendu
-            if ($user->statut !== 'suspendu' && $user->statut !== 'inactif') {
-                return response()->json(['message' => 'Ce compte n\'est pas suspendu.'], 400);
-            }
-
-            // Dégeler le compte en changeant le statut
-            $user->statut = 'actif';
-            $user->save();
-
-            return response()->json([
-                'message' => 'Compte utilisateur dégelé avec succès. L\'utilisateur peut maintenant se connecter.',
-                'data' => [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'statut' => $user->statut
-                ]
-            ]);
+            
+            // Vous pourriez vouloir ajouter une logique pour gérer les ressources associées
+            // Par exemple, transférer ou supprimer les documents de l'utilisateur
+            
+            $user->delete();
+            
+            return response()->json(['message' => 'Utilisateur supprimé avec succès']);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['message' => 'Utilisateur non trouvé'], 404);
         } catch (\Exception $e) {
-            \Log::error('Erreur lors du dégel du compte utilisateur', [
+            \Log::error('Erreur lors de la suppression de l\'utilisateur', [
                 'id' => $id,
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return response()->json([
-                'error' => 'Erreur serveur',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Réinitialise/Modifie le mot de passe d'un utilisateur (Admin uniquement).
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function resetPassword(Request $request, $id)
-    {
-        try {
-            // Récupération manuelle du token
-            $token = $request->bearerToken();
-            if (!$token) {
-                return response()->json(['error' => 'Token non fourni'], 401);
-            }
-
-            // Validation manuelle du token
-            $personalAccessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-            if (!$personalAccessToken) {
-                return response()->json(['error' => 'Token invalide'], 401);
-            }
-
-            // Récupération de l'utilisateur authentifié
-            $authenticatedUser = $personalAccessToken->tokenable;
-
-            // Vérifier que l'utilisateur authentifié est admin
-            if ($authenticatedUser->role != 1) {
-                return response()->json(['message' => 'Accès non autorisé. Seuls les administrateurs peuvent réinitialiser les mots de passe.'], 403);
-            }
-
-            // Validation des données
-            $validator = Validator::make($request->all(), [
-                'password' => 'required|string|min:8|confirmed', // confirmed vérifie password_confirmation
-            ], [
-                'password.required' => 'Le mot de passe est requis',
-                'password.min' => 'Le mot de passe doit contenir au moins 8 caractères',
-                'password.confirmed' => 'Les mots de passe ne correspondent pas',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
-
-            // Récupérer l'utilisateur à modifier
-            $user = User::findOrFail($id);
-
-            // Modifier le mot de passe
-            $user->password = Hash::make($request->password);
-            $user->save();
-
-            // Révoquer tous les tokens de l'utilisateur pour le forcer à se reconnecter
-            $user->tokens()->delete();
-
-            return response()->json([
-                'message' => "Mot de passe réinitialisé avec succès. L'utilisateur devra se reconnecter avec le nouveau mot de passe.",
-                'data' => [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'user_email' => $user->email
-                ]
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
-        } catch (\Exception $e) {
-            \Log::error('Erreur lors de la réinitialisation du mot de passe', [
-                'id' => $id,
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'error' => 'Erreur serveur',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Attribue un rôle à un utilisateur (admin ou utilisateur).
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function assignRole(Request $request, $id)
-    {
-        try {
-            // Récupération manuelle du token
-            $token = $request->bearerToken();
-            if (!$token) {
-                return response()->json(['error' => 'Token non fourni'], 401);
-            }
-
-            // Validation manuelle du token
-            $personalAccessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-            if (!$personalAccessToken) {
-                return response()->json(['error' => 'Token invalide'], 401);
-            }
-
-            // Récupération de l'utilisateur authentifié
-            $authenticatedUser = $personalAccessToken->tokenable;
-
-            // Vérifier que l'utilisateur authentifié est admin
-            if ($authenticatedUser->role != 1) {
-                return response()->json(['message' => 'Accès non autorisé. Seuls les administrateurs peuvent attribuer des rôles.'], 403);
-            }
-
-            // Validation des données
-            $validator = Validator::make($request->all(), [
-                'role' => 'required|in:0,1', // 0 = utilisateur, 1 = admin
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
-
-            // Récupérer l'utilisateur à modifier
-            $user = User::findOrFail($id);
-
-            // Empêcher un admin de se retirer ses propres droits
-            if ($user->id === $authenticatedUser->id && $request->role == 0) {
-                return response()->json(['message' => 'Vous ne pouvez pas retirer vos propres droits d\'administrateur.'], 403);
-            }
-
-            $oldRole = $user->role;
-            $user->role = $request->role;
-            $user->save();
-
-            $roleName = $request->role == 1 ? 'Administrateur' : 'Utilisateur';
-
-            return response()->json([
-                'message' => "Rôle attribué avec succès",
-                'data' => [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'old_role' => $oldRole,
-                    'new_role' => $user->role,
-                    'role_name' => $roleName
-                ]
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
-        } catch (\Exception $e) {
-            \Log::error('Erreur lors de l\'attribution du rôle', [
-                'id' => $id,
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'error' => 'Erreur serveur',
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Affecte un utilisateur à un service.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function assignService(Request $request, $id)
-    {
-        try {
-            // Récupération manuelle du token
-            $token = $request->bearerToken();
-            if (!$token) {
-                return response()->json(['error' => 'Token non fourni'], 401);
-            }
-
-            // Validation manuelle du token
-            $personalAccessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-            if (!$personalAccessToken) {
-                return response()->json(['error' => 'Token invalide'], 401);
-            }
-
-            // Récupération de l'utilisateur authentifié
-            $authenticatedUser = $personalAccessToken->tokenable;
-
-            // Vérifier que l'utilisateur authentifié est admin
-            if ($authenticatedUser->role != 1) {
-                return response()->json(['message' => 'Accès non autorisé. Seuls les administrateurs peuvent affecter des services.'], 403);
-            }
-
-            // Validation des données
-            $validator = Validator::make($request->all(), [
-                'service_id' => 'required|exists:services,id',
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
-
-            // Récupérer l'utilisateur à modifier
-            $user = User::findOrFail($id);
-            $oldServiceId = $user->service_id;
-
-            $user->service_id = $request->service_id;
-            $user->save();
-
-            // Charger la relation service pour retourner les détails
-            $user->load('service');
-
-            return response()->json([
-                'message' => "Service affecté avec succès",
-                'data' => [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'old_service_id' => $oldServiceId,
-                    'new_service_id' => $user->service_id,
-                    'service' => $user->service
-                ]
-            ]);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
-        } catch (\Exception $e) {
-            \Log::error('Erreur lors de l\'affectation du service', [
-                'id' => $id,
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return response()->json([
-                'error' => 'Erreur serveur',
-                'message' => $e->getMessage()
-            ], 500);
+            return response()->json(['message' => 'Erreur lors de la suppression de l\'utilisateur'], 500);
         }
     }
 }

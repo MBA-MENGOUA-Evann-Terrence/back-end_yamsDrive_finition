@@ -15,15 +15,10 @@ class ShareLink extends Model
         'shared_by',
         'permission_level',
         'expires_at',
-        'access_code',
-        'require_code',
-        'require_login',
     ];
 
     protected $casts = [
         'expires_at' => 'datetime',
-        'require_code' => 'boolean',
-        'require_login' => 'boolean',
     ];
 
     /**
