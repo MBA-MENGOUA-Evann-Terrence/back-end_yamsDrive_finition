@@ -599,6 +599,50 @@ class StatistiqueController extends Controller
     }
 
     /**
+     * DEBUG: Vérifier les données de partage brutes
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function debugSharingData()
+    {
+        try {
+            // Récupérer les 20 derniers partages avec toutes les infos
+            $shares = DB::table('document_shares')
+                ->join('users as envoyeur', 'document_shares.shared_by', '=', 'envoyeur.id')
+                ->join('users as destinataire', 'document_shares.user_id', '=', 'destinataire.id')
+                ->join('documents', 'document_shares.document_id', '=', 'documents.id')
+                ->select(
+                    'document_shares.id',
+                    'documents.nom as document_nom',
+                    'envoyeur.id as envoyeur_id',
+                    'envoyeur.name as envoyeur_nom',
+                    'envoyeur.email as envoyeur_email',
+                    'destinataire.id as destinataire_id',
+                    'destinataire.name as destinataire_nom',
+                    'destinataire.email as destinataire_email',
+                    'document_shares.created_at'
+                )
+                ->orderBy('document_shares.created_at', 'desc')
+                ->limit(20)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Données brutes de partage',
+                'total' => $shares->count(),
+                'data' => $shares
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des données de débogage.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Récupère les utilisateurs actuellement connectés et les activités récentes.
      *
      * @return \Illuminate\Http\JsonResponse

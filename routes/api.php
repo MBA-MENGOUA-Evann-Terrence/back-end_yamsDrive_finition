@@ -92,14 +92,6 @@ Route::get('/documents/shared-with-me', [App\Http\Controllers\DocumentShareContr
     // Options pour les filtres avancés (types, personnes, services)
     Route::get('/documents/filters/options', [App\Http\Controllers\DocumentFilterController::class, 'getFilterOptions']);
 
-// Routes pour le partage de documents (AVANT les routes génériques pour éviter les conflits)
-Route::get('/documents/{uuid}/shares', [App\Http\Controllers\DocumentShareController::class, 'index']);
-Route::post('/documents/{uuid}/share', [App\Http\Controllers\DocumentShareController::class, 'share']);
-Route::post('/documents/{uuid}/share-by-service', [App\Http\Controllers\ServiceShareController::class, 'shareByService']);
-Route::post('/documents/{uuid}/share-link', [App\Http\Controllers\DocumentShareController::class, 'generateShareLink']);
-Route::delete('/shares/{shareId}', [App\Http\Controllers\DocumentShareController::class, 'removeShare']);
-Route::delete('/documents/{uuid}/shares/{shareId}', [App\Http\Controllers\DocumentShareController::class, 'removeShare']);
-
 Route::get('/documents/{uuid}', [App\Http\Controllers\DocumentController::class, 'show'])->whereUuid('uuid');
 Route::get('/documents/{uuid}/preview', [App\Http\Controllers\DocumentController::class, 'preview'])->whereUuid('uuid');
 Route::get('/documents/{uuid}/download', [App\Http\Controllers\DocumentController::class, 'download'])->whereUuid('uuid');
@@ -138,7 +130,17 @@ Route::get('/statistiques/activite-utilisateurs', [App\Http\Controllers\Statisti
 Route::get('/statistiques/actions-recentes', [App\Http\Controllers\StatistiqueController::class, 'getRecentActions']);
 Route::get('/statistiques/actions-utilisateurs', [App\Http\Controllers\StatistiqueController::class, 'getUserActionsChart']);
 Route::get('/statistiques/partages-documents', [App\Http\Controllers\StatistiqueController::class, 'getDocumentSharingStats']);
+Route::get('/statistiques/debug-partages', [App\Http\Controllers\StatistiqueController::class, 'debugSharingData']);
 
+
+// Routes pour le partage de documents
+Route::get('/documents/{uuid}/shares', [App\Http\Controllers\DocumentShareController::class, 'index']);
+Route::post('/documents/{uuid}/share', [App\Http\Controllers\DocumentShareController::class, 'share']);
+Route::post('/documents/{uuid}/share-by-service', [App\Http\Controllers\ServiceShareController::class, 'shareByService']);
+Route::post('/documents/{uuid}/share-link', [App\Http\Controllers\DocumentShareController::class, 'generateShareLink']);
+Route::delete('/documents/{uuid}/shares/{shareId}', [App\Http\Controllers\DocumentShareController::class, 'removeShare']);
+// Retirer un document de "Partages avec moi" (cote destinataire)
+Route::delete('/shared-with-me/{uuid}', [App\Http\Controllers\DocumentShareController::class, 'removeFromSharedWithMe']);
 
 // Routes publiques pour les documents partagés via un token
 Route::get('/shared-documents/{token}/info', [App\Http\Controllers\DocumentShareController::class, 'getSharedDocumentInfo']); // Récupérer les infos

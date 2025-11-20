@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Document;
 use App\Models\Service;
 use App\Models\DocumentShare;
+use App\Models\Notification;
 use App\Events\UserActionLogged;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -98,6 +99,15 @@ class ServiceShareController extends Controller
                     'user_id' => $targetUser->id,
                     'shared_by' => $user->id,
                     'permissions' => 'read', // Permission par défaut
+                ]);
+
+                // Créer une notification pour chaque utilisateur du service
+                Notification::create([
+                    'user_id' => $targetUser->id,
+                    'sender_id' => $user->id,
+                    'document_id' => $document->id,
+                    'type' => 'document_shared',
+                    'message' => $user->name . ' a partagé un document avec votre service (' . $service->nom . ') : ' . $document->nom,
                 ]);
 
                 $created++;

@@ -22,9 +22,6 @@ class LogUserAction
      */
     public function handle(UserActionLogged $event): void
     {
-        // DÉSACTIVÉ TEMPORAIREMENT: Retour immédiat pour éviter la récursion infinie
-        return;
-        
         // Obtenir le dispatcher d'événements actuel pour le modèle LogAction
         $dispatcher = LogAction::getEventDispatcher();
 

@@ -247,7 +247,7 @@ class UserController extends Controller
     }
 
     /**
-     * Supprime un utilisateur.
+     * Gèle le compte d'un utilisateur (admin uniquement).
      *
      * @param  int  $id
      * @return \Illuminate\Http\JsonResponse
@@ -260,21 +260,185 @@ class UserController extends Controller
         try {
             $user = User::findOrFail($id);
             
-            // Vous pourriez vouloir ajouter une logique pour gérer les ressources associées
-            // Par exemple, transférer ou supprimer les documents de l'utilisateur
+            // Geler le compte au lieu de le supprimer
+            $user->statut = 'gelé';
+            $user->save();
             
-            $user->delete();
+            // Révoquer tous les tokens actifs pour déconnecter l'utilisateur
+            $user->tokens()->delete();
             
-            return response()->json(['message' => 'Utilisateur supprimé avec succès']);
+            return response()->json([
+                'message' => 'Compte gelé avec succès',
+                'data' => $user
+            ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['message' => 'Utilisateur non trouvé'], 404);
         } catch (\Exception $e) {
-            \Log::error('Erreur lors de la suppression de l\'utilisateur', [
+            \Log::error('Erreur lors du gel du compte', [
                 'id' => $id,
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return response()->json(['message' => 'Erreur lors de la suppression de l\'utilisateur'], 500);
+            return response()->json(['message' => 'Erreur lors du gel du compte'], 500);
+        }
+    }
+
+    /**
+     * Assigne un rôle à un utilisateur (admin uniquement).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function assignRole(Request $request, $id)
+    {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
+
+        try {
+            $user = User::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'role' => 'required|integer|in:0,1'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $user->role = $request->role;
+            $user->save();
+
+            return response()->json([
+                'message' => 'Rôle assigné avec succès.',
+                'data' => $user
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de l\'assignation du rôle', [
+                'id' => $id,
+                'message' => $e->getMessage()
+            ]);
+            return response()->json(['message' => 'Erreur lors de l\'assignation du rôle'], 500);
+        }
+    }
+
+    /**
+     * Assigne un service à un utilisateur (admin uniquement).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function assignService(Request $request, $id)
+    {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
+
+        try {
+            $user = User::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'service_id' => 'required|integer|exists:services,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
+            }
+
+            $user->service_id = $request->service_id;
+            $user->save();
+
+            return response()->json([
+                'message' => 'Service assigné avec succès.',
+                'data' => $user->load('service')
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de l\'assignation du service', [
+                'id' => $id,
+                'message' => $e->getMessage()
+            ]);
+            return response()->json(['message' => 'Erreur lors de l\'assignation du service'], 500);
+        }
+    }
+
+    /**
+     * Réinitialise le mot de passe d'un utilisateur (admin uniquement).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function resetPassword(Request $request, $id)
+    {
+        // Vérifier que l'utilisateur connecté est admin
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
+
+        try {
+            // Vérifier que l'utilisateur existe
+            $user = User::findOrFail($id);
+
+            // Générer un nouveau mot de passe (aléatoire ou fourni)
+            $newPassword = $request->input('password') ?? str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            
+            // Mettre à jour le mot de passe
+            $user->password = Hash::make($newPassword);
+            $user->save();
+
+            return response()->json([
+                'message' => 'Mot de passe réinitialisé avec succès.',
+                'user_id' => $user->id,
+                'new_password' => $newPassword
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la réinitialisation du mot de passe', [
+                'id' => $id,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json(['message' => 'Erreur lors de la réinitialisation du mot de passe'], 500);
+        }
+    }
+
+    /**
+     * Dégèle le compte d'un utilisateur (admin uniquement).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  int  $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function unfreeze(Request $request, $id)
+    {
+        if (!$request->user() || $request->user()->role != 1) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
+
+        try {
+            $user = User::findOrFail($id);
+            $user->statut = 'actif';
+            $user->save();
+
+            return response()->json([
+                'message' => 'Compte dégelé avec succès.',
+                'data' => $user
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json(['message' => 'Utilisateur non trouvé'], 404);
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors du dégel du compte', [
+                'id' => $id,
+                'message' => $e->getMessage()
+            ]);
+            return response()->json(['message' => 'Erreur lors du dégel du compte'], 500);
         }
     }
 }
